@@ -65,7 +65,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             # Echo the message back
             # await websocket.send_text(f"Server received: {data} from {client_id}")
  
-            await manager.braodcast(f"{client_id}: {data}")
+            await manager.broadcast(f"{client_id}: {data}")
     except WebSocketDisconnect as e:
         print(f" {client_id} disconnected"
               f"code={e.code}")
