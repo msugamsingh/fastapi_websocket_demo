@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 import asyncio
 from typing import Dict
 from fastapi_ws_demo.connectionmanager import ConnectionManager
+import time
 
 app = FastAPI(title="Websocket demo")
 
@@ -61,9 +62,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         while True:
             # Wait for a message from the client
             data = await websocket.receive_text()
+
+            if data == "pong":
+                manager.last_pong[client_id] = time.monotonic()
+                continue
+
             print(f"[{client_id}] received: {data}")
-            # Echo the message back
-            # await websocket.send_text(f"Server received: {data} from {client_id}")
  
             await manager.broadcast(f"{client_id}: {data}")
     except WebSocketDisconnect as e:

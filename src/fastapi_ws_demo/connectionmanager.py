@@ -1,15 +1,16 @@
 
 from fastapi import WebSocket
 import asyncio as asyncio
+import time 
 
 class ConnectionManager:
 
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.background_tasks: dict[str, asyncio.Task] = {}
+        self.last_pong: dict[str, float] = {}
 
-    #fake task
-    async def _background_task(
+    async def _hearbeat(
     self,
     client_id: str,
     websocket: WebSocket,
@@ -21,13 +22,31 @@ class ConnectionManager:
                 if self.active_connections.get(client_id) is not websocket:
                     return
 
-                print(
-                    f"Background task running for {client_id}"
-                )
+                last_pong = self.last_pong.get(client_id)
+                if last_pong is None:
+                    return
+
+                elapsed = time.monotonic() - last_pong
+
+                if elapsed > 20:
+                    print(f"{client_id} timed out")
+                    self.disconnect(client_id=client_id, websocket=websocket)
+
+                    try:
+                        await websocket.close()
+                    except Exception:
+                        pass
+
+                    return
+
+
+
+                await websocket.send_text('ping')
+
 
         except asyncio.CancelledError:
             print(
-                f"Background task cancelled for {client_id}"
+                f"Heartbeat cancelled for {client_id}"
             )
             raise
 
@@ -44,8 +63,9 @@ class ConnectionManager:
         await websocket.accept()
 
         self.active_connections[client_id] = websocket
+        self.last_pong[client_id] = time.monotonic()
 
-        task = asyncio.create_task(self._background_task(client_id, websocket))
+        task = asyncio.create_task(self._hearbeat(client_id, websocket))
 
         self.background_tasks[client_id] = task
 
@@ -65,10 +85,13 @@ class ConnectionManager:
             return 
 
         del self.active_connections[client_id]
+        self.last_pong.pop(client_id, None)
         task = self.background_tasks.pop(client_id, None)
 
         if task:
             task.cancel()
+
+     
 
         print(
             f"{client_id} removed. "
